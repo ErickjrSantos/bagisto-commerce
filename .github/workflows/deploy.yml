@@ -165,10 +165,26 @@ jobs:
             echo "Waiting for services to start..."
             sleep 45
             
+            # Check container status
+            echo "Container status:"
+            docker compose ps
+            
+            # Check MySQL logs
+            echo "MySQL logs:"
+            docker compose logs mysql | tail -50
+            
             # Wait for MySQL to be fully ready
             echo "Waiting for MySQL to initialize..."
-            until docker compose exec -T mysql mysqladmin ping -h localhost --silent; do
-              echo "MySQL is unavailable - sleeping"
+            MAX_TRIES=30
+            COUNT=0
+            until docker compose exec -T mysql mysqladmin ping -h localhost --silent 2>/dev/null; do
+              COUNT=$((COUNT+1))
+              if [ $COUNT -ge $MAX_TRIES ]; then
+                echo "MySQL failed to start after $MAX_TRIES attempts"
+                docker compose logs mysql
+                exit 1
+              fi
+              echo "MySQL is unavailable - attempt $COUNT/$MAX_TRIES"
               sleep 5
             done
             echo "MySQL is ready!"

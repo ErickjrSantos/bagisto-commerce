@@ -73,7 +73,6 @@ services:
       MYSQL_ALLOW_EMPTY_PASSWORD: 0
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf
     networks:
       - bagisto-network
     healthcheck:
