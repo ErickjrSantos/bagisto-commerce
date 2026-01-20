@@ -1,0 +1,198 @@
+name: Deploy to VPS with Docker
+
+on:
+  push:
+    branches:
+      - main
+      - production
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create deployment directory on VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p ${{ secrets.DEPLOY_PATH }}"
+
+      - name: Copy docker-compose to VPS
+        run: |
+          scp docker-compose.prod.yml ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.DEPLOY_PATH }}/docker-compose.yml
+          scp -r docker ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.DEPLOY_PATH }}/
+
+      - name: Create .env file on VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            cd ${{ secrets.DEPLOY_PATH }}
+            cat > .env << 'ENVEOF'
+          # Application
+          APP_NAME=${{ secrets.APP_NAME }}
+          APP_ENV=production
+          APP_KEY=${{ secrets.APP_KEY }}
+          APP_DEBUG=false
+          APP_URL=${{ secrets.APP_URL }}
+          APP_ADMIN_URL=admin
+          APP_TIMEZONE=Africa/Kampala
+          
+          # Database
+          DB_CONNECTION=mysql
+          DB_HOST=mysql
+          DB_PORT=3306
+          DB_DATABASE=${{ secrets.DB_DATABASE }}
+          DB_USERNAME=${{ secrets.DB_USERNAME }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}
+          
+          # Cache & Session
+          CACHE_STORE=redis
+          CACHE_PREFIX=bagisto_
+          SESSION_DRIVER=redis
+          SESSION_LIFETIME=120
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+          
+          # Queue
+          QUEUE_CONNECTION=redis
+          
+          # Mail (commented out - add secrets later if needed)
+          # MAIL_MAILER=smtp
+          # MAIL_HOST=${{ secrets.MAIL_HOST }}
+          # MAIL_PORT=${{ secrets.MAIL_PORT }}
+          # MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
+          # MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
+          # MAIL_ENCRYPTION=tls
+          # MAIL_FROM_ADDRESS=${{ secrets.MAIL_FROM_ADDRESS }}
+          # ADMIN_MAIL_ADDRESS=${{ secrets.ADMIN_MAIL_ADDRESS }}
+          
+          # Docker
+          DOCKER_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.sha }}
+          NGINX_PORT=80
+          NGINX_SSL_PORT=443
+          PHP_MEMORY_LIMIT=512M
+          
+          # Response Cache
+          RESPONSE_CACHE_ENABLED=true
+          
+          # Elasticsearch
+          ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+          ENVEOF
+          EOF
+
+      - name: Deploy on VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            cd ${{ secrets.DEPLOY_PATH }}
+            
+            # Login to GitHub Container Registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+            
+            # Pull the latest image
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.sha }}
+            
+            # Stop and remove old containers
+            docker-compose down
+            
+            # Start new containers
+            docker-compose up -d
+            
+            # Wait for services to be ready
+            echo "Waiting for services to start..."
+            sleep 20
+            
+            # Run migrations
+            docker-compose exec -T php php artisan migrate --force
+            
+            # Create storage link
+            docker-compose exec -T php php artisan storage:link || true
+            
+            # Clear and optimize
+            docker-compose exec -T php php artisan config:clear
+            docker-compose exec -T php php artisan cache:clear
+            docker-compose exec -T php php artisan route:clear
+            docker-compose exec -T php php artisan view:clear
+            
+            # Cache for production
+            docker-compose exec -T php php artisan config:cache
+            docker-compose exec -T php php artisan route:cache
+            docker-compose exec -T php php artisan view:cache
+            docker-compose exec -T php php artisan optimize
+            
+            # Cleanup old images
+            docker image prune -f
+          EOF
+
+      - name: Health Check
+        run: |
+          sleep 10
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.APP_URL }})
+          if [ $STATUS -eq 200 ] || [ $STATUS -eq 302 ]; then
+            echo "✅ Health check passed (HTTP $STATUS)"
+          else
+            echo "❌ Health check failed (HTTP $STATUS)"
+            exit 1
+          fi
+
+      - name: Deployment notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Deployment to ${{ secrets.APP_URL }} completed successfully!"
+          else
+            echo "❌ Deployment failed!"
+          fi

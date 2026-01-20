@@ -1,0 +1,75 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+.docker
+docker-compose.yml
+docker-compose.prod.yml
+Dockerfile
+.dockerignore
+
+# Documentation
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+UPGRADE.md
+
+# Tests
+tests/
+phpunit.xml
+
+# Dependencies
+vendor/
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment
+.env
+.env.backup
+.env.production
+.env.docker
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+public/storage
+public/hot
+storage/*.key
+storage/app/*
+!storage/app/.gitignore
+storage/framework/cache/*
+!storage/framework/cache/.gitignore
+storage/framework/sessions/*
+!storage/framework/sessions/.gitignore
+storage/framework/views/*
+!storage/framework/views/.gitignore
+storage/logs/*
+!storage/logs/.gitignore
+storage/debugbar/
+bootstrap/cache/*
+!bootstrap/cache/.gitignore
+
+# Compiled assets
+public/build/
+public/css/
+public/js/
+public/mix-manifest.json
+
+# Misc
+*.log
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+.vagrant

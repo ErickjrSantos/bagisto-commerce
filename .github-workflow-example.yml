@@ -1,0 +1,101 @@
+# CI/CD Pipeline Example for GitHub Actions
+# Save this as .github/workflows/deploy.yml
+
+name: Deploy Bagisto to VPS
+
+on:
+  push:
+    branches:
+      - main
+      - production
+  workflow_dispatch:
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Add VPS to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create .env.docker on VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "cat > /path/to/bagisto/.env.docker << 'EOF'
+          APP_NAME=Bagisto
+          APP_ENV=production
+          APP_KEY=${{ secrets.APP_KEY }}
+          APP_DEBUG=false
+          APP_URL=${{ secrets.APP_URL }}
+          APP_ADMIN_URL=admin
+          APP_TIMEZONE=Africa/Kampala
+          
+          DB_CONNECTION=mysql
+          DB_HOST=mysql
+          DB_PORT=3306
+          DB_DATABASE=${{ secrets.DB_DATABASE }}
+          DB_USERNAME=${{ secrets.DB_USERNAME }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}
+          
+          CACHE_STORE=redis
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+          
+          MAIL_MAILER=smtp
+          MAIL_HOST=${{ secrets.MAIL_HOST }}
+          MAIL_PORT=${{ secrets.MAIL_PORT }}
+          MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
+          MAIL_ENCRYPTION=tls
+          
+          MAIL_FROM_ADDRESS=${{ secrets.MAIL_FROM_ADDRESS }}
+          ADMIN_MAIL_ADDRESS=${{ secrets.ADMIN_MAIL_ADDRESS }}
+          EOF"
+
+      - name: Deploy to VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
+            cd /path/to/bagisto
+            git pull origin main
+            docker-compose -f docker-compose.prod.yml down
+            docker-compose -f docker-compose.prod.yml build --no-cache
+            docker-compose -f docker-compose.prod.yml up -d
+            
+            # Wait for services to be ready
+            sleep 15
+            
+            # Run post-deployment commands
+            docker-compose -f docker-compose.prod.yml exec -T php php artisan migrate --force
+            docker-compose -f docker-compose.prod.yml exec -T php php artisan config:cache
+            docker-compose -f docker-compose.prod.yml exec -T php php artisan route:cache
+            docker-compose -f docker-compose.prod.yml exec -T php php artisan view:cache
+            docker-compose -f docker-compose.prod.yml exec -T php php artisan optimize
+          ENDSSH
+
+      - name: Health Check
+        run: |
+          sleep 10
+          curl -f ${{ secrets.APP_URL }} || exit 1
+
+      - name: Notification
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Deployment successful!"
+          else
+            echo "❌ Deployment failed!"
+          fi
