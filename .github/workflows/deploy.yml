@@ -163,7 +163,15 @@ jobs:
             
             # Wait for services to be ready
             echo "Waiting for services to start..."
-            sleep 20
+            sleep 45
+            
+            # Wait for MySQL to be fully ready
+            echo "Waiting for MySQL to initialize..."
+            until docker compose exec -T mysql mysqladmin ping -h localhost --silent; do
+              echo "MySQL is unavailable - sleeping"
+              sleep 5
+            done
+            echo "MySQL is ready!"
             
             # Run migrations
             docker compose exec -T php php artisan migrate --force

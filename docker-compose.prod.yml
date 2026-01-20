@@ -37,10 +37,8 @@ services:
       - MAIL_PASSWORD=${MAIL_PASSWORD}
       - MAIL_ENCRYPTION=${MAIL_ENCRYPTION:-tls}
     depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - mysql
+      - redis
 
   # Nginx Service
   nginx:
