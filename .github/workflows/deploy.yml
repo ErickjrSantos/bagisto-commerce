@@ -20,17 +20,11 @@ jobs:
       packages: write
     
     outputs:
-      image_tag: ${{ steps.image.outputs.tag }}
+      image_tag: ${{ steps.lowercase.outputs.tag }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      - name: Set lowercase image name
-        id: image
-        run: |
-          echo "name=$(echo '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-          echo "tag=$(echo '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.sha }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -41,24 +35,20 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ steps.image.outputs.name }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Set lowercase image tag
+        id: lowercase
+        run: |
+          IMAGE_TAG=$(echo '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}' | tr '[:upper:]' '[:lower:]')
+          echo "tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "Image will be tagged as: ${IMAGE_TAG}"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.lowercase.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
