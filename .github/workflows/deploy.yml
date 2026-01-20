@@ -127,8 +127,8 @@ jobs:
           
           # Docker
           DOCKER_IMAGE=${{ needs.build-and-push.outputs.image_tag }}
-          NGINX_PORT=80
-          NGINX_SSL_PORT=443
+          NGINX_PORT=8080
+          NGINX_SSL_PORT=8443
           PHP_MEMORY_LIMIT=512M
           
           # Response Cache
