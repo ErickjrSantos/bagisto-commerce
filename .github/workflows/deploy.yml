@@ -73,8 +73,13 @@ jobs:
 
       - name: Copy docker-compose to VPS
         run: |
-          scp docker-compose.prod.yml ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.DEPLOY_PATH }}/docker-compose.yml
-          scp -r docker ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.DEPLOY_PATH }}/
+          set -e
+          echo "Copying docker-compose.prod.yml..."
+          scp -v docker-compose.prod.yml ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.DEPLOY_PATH }}/docker-compose.yml
+          echo "Copying docker directory..."
+          scp -v -r docker ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.DEPLOY_PATH }}/
+          echo "Verifying files on VPS..."
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "ls -la ${{ secrets.DEPLOY_PATH }}"
 
       - name: Create .env file on VPS
         run: |
@@ -137,7 +142,12 @@ jobs:
       - name: Deploy on VPS
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            set -e
             cd ${{ secrets.DEPLOY_PATH }}
+            
+            # Verify files exist
+            echo "Files in deployment directory:"
+            ls -la
             
             # Login to GitHub Container Registry
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
