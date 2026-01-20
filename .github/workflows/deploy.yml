@@ -100,8 +100,8 @@ jobs:
           DB_HOST=mysql
           DB_PORT=3306
           DB_DATABASE=${{ secrets.DB_DATABASE }}
-          DB_USERNAME=${{ secrets.DB_USERNAME }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_USERNAME=root
+          DB_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}
           DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}
           
           # Cache & Session
