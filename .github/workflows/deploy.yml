@@ -138,16 +138,21 @@ jobs:
           ENVEOF
           EOF
 
-      - name: Install Composer dependencies
+      - name: Install PHP 8.4 extensions and Composer dependencies
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
             set -e
             cd ${{ secrets.DEPLOY_PATH }}
             
-            # Install dependencies
-            composer install --optimize-autoloader --no-dev --no-interaction
+            # Install PHP 8.4 and required extensions
+            echo "Installing PHP 8.4 and extensions..."
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq php8.4 php8.4-cli php8.4-fpm php8.4-curl php8.4-intl php8.4-mysql php8.4-dom php8.4-gd php8.4-mbstring php8.4-xml php8.4-zip php8.4-bcmath 2>&1 | grep -v "^Reading" || true
             
-            echo "✅ Composer dependencies installed"
+            # Install dependencies using PHP 8.4
+            /usr/bin/php8.4 $(which composer) install --optimize-autoloader --no-dev --no-interaction
+            
+            echo "✅ PHP 8.4 extensions and Composer dependencies installed"
           EOF
 
       - name: Run database migrations
@@ -157,7 +162,7 @@ jobs:
             cd ${{ secrets.DEPLOY_PATH }}
             
             # Run migrations
-            php artisan migrate --force
+            /usr/bin/php8.4 artisan migrate --force
             
             echo "✅ Database migrations completed"
           EOF
@@ -169,23 +174,23 @@ jobs:
             cd ${{ secrets.DEPLOY_PATH }}
             
             # Create storage link
-            php artisan storage:link || true
+            /usr/bin/php8.4 artisan storage:link || true
             
             # Set proper permissions
             chmod -R 775 storage bootstrap/cache
             chown -R $USER:www-data storage bootstrap/cache
             
             # Clear all caches
-            php artisan config:clear
-            php artisan cache:clear
-            php artisan route:clear
-            php artisan view:clear
+            /usr/bin/php8.4 artisan config:clear
+            /usr/bin/php8.4 artisan cache:clear
+            /usr/bin/php8.4 artisan route:clear
+            /usr/bin/php8.4 artisan view:clear
             
             # Cache for production
-            php artisan config:cache
-            php artisan route:cache
-            php artisan view:cache
-            php artisan optimize
+            /usr/bin/php8.4 artisan config:cache
+            /usr/bin/php8.4 artisan route:cache
+            /usr/bin/php8.4 artisan view:cache
+            /usr/bin/php8.4 artisan optimize
             
             echo "✅ Application optimized for production"
           EOF
@@ -209,7 +214,7 @@ jobs:
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
             # Restart PHP-FPM
-            sudo systemctl restart php8.2-fpm
+            sudo systemctl restart php8.4-fpm
             
             # Restart Nginx/Apache
             sudo systemctl restart nginx || sudo systemctl restart apache2
