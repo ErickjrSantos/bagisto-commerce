@@ -199,8 +199,8 @@ jobs:
             set -e
             cd ${{ secrets.DEPLOY_PATH }}
             
-            # Install npm dependencies
-            npm install --production
+            # Install npm dependencies (including devDependencies for build tools)
+            npm install
             
             # Build assets
             npm run build
