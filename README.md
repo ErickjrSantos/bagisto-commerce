@@ -138,6 +138,21 @@ Build [decentralised applications](https://bagisto.com/en/services/blockchain-co
 
 With Bagisto, you can easily create use cases for various commerce needs like Marketplaces, PWA, Native Mobile Apps, Multi-Tenants systems, Blockchain and many more.
 
+# 🚀 Automated Deployment
+
+This project includes automated deployment to VPS using GitHub Actions. Simply push your code and watch it deploy automatically!
+
+**Quick Start:**
+- Add required secrets to GitHub (see [SECRETS-CHECKLIST.md](SECRETS-CHECKLIST.md))
+- Configure your VPS server
+- Push to `main` or `production` branch
+- Watch deployment in the **Actions** tab
+
+**Documentation:**
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Complete deployment guide
+- [SECRETS-CHECKLIST.md](SECRETS-CHECKLIST.md) - Required secrets and VPS setup
+- [QUICK-SECRETS-REFERENCE.md](QUICK-SECRETS-REFERENCE.md) - Quick reference
+
 # Built In Extensions
 
 ![enter image description here](https://raw.githubusercontent.com/bagisto/temp-media/master/built_in_extension.png)

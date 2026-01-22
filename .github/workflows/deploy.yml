@@ -1,59 +1,14 @@
-name: Deploy to VPS with Docker
+name: Deploy to VPS
 
 on:
   push:
     branches:
-      - 2.3
       - main
       - production
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    
-    outputs:
-      image_tag: ${{ steps.lowercase.outputs.tag }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Set lowercase image tag
-        id: lowercase
-        run: |
-          IMAGE_TAG=$(echo '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}' | tr '[:upper:]' '[:lower:]')
-          echo "tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "Image will be tagged as: ${IMAGE_TAG}"
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.lowercase.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   deploy:
-    needs: build-and-push
     runs-on: ubuntu-latest
 
     steps:
@@ -71,17 +26,26 @@ jobs:
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p ${{ secrets.DEPLOY_PATH }}"
 
-      - name: Copy docker-compose to VPS
+      - name: Deploy code to VPS
         run: |
-          set -e
-          echo "Copying docker-compose.prod.yml..."
-          scp -v docker-compose.prod.yml ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.DEPLOY_PATH }}/docker-compose.yml
-          echo "Copying docker directory..."
-          scp -v -r docker ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.DEPLOY_PATH }}/
-          echo "Verifying files on VPS..."
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "ls -la ${{ secrets.DEPLOY_PATH }}"
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+            
+            # Pull latest code
+            if [ -d .git ]; then
+              echo "Updating existing repository..."
+              git fetch origin
+              git reset --hard origin/${{ github.ref_name }}
+            else
+              echo "Cloning repository..."
+              git clone -b ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+            fi
+            
+            echo "✅ Code deployment completed"
+          EOF
 
-      - name: Create .env file on VPS
+      - name: Create/Update .env file on VPS
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
             cd ${{ secrets.DEPLOY_PATH }}
@@ -91,141 +55,178 @@ jobs:
           APP_ENV=production
           APP_KEY=${{ secrets.APP_KEY }}
           APP_DEBUG=false
+          APP_DEBUG_ALLOWED_IPS=
           APP_URL=${{ secrets.APP_URL }}
           APP_ADMIN_URL=admin
           APP_TIMEZONE=Africa/Kampala
           
+          APP_LOCALE=en
+          APP_FALLBACK_LOCALE=en
+          APP_FAKER_LOCALE=en_US
+          APP_CURRENCY=USD
+          
+          APP_MAINTENANCE_DRIVER=file
+          BCRYPT_ROUNDS=12
+          
+          # Logging
+          LOG_CHANNEL=stack
+          LOG_STACK=single
+          LOG_DEPRECATIONS_CHANNEL=null
+          LOG_LEVEL=error
+          
           # Database
           DB_CONNECTION=mysql
-          DB_HOST=mysql
-          DB_PORT=3306
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
           DB_DATABASE=${{ secrets.DB_DATABASE }}
-          DB_USERNAME=root
-          DB_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}
-          DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}
+          DB_USERNAME=${{ secrets.DB_USERNAME }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_PREFIX=
           
-          # Cache & Session
-          CACHE_STORE=redis
-          CACHE_PREFIX=bagisto_
-          SESSION_DRIVER=redis
+          # Session & Cache
+          SESSION_DRIVER=file
           SESSION_LIFETIME=120
-          REDIS_HOST=redis
+          SESSION_ENCRYPT=false
+          SESSION_PATH=/
+          SESSION_DOMAIN=null
+          
+          BROADCAST_CONNECTION=log
+          FILESYSTEM_DISK=public
+          QUEUE_CONNECTION=sync
+          
+          CACHE_STORE=file
+          CACHE_PREFIX=
+          
+          MEMCACHED_HOST=127.0.0.1
+          
+          REDIS_CLIENT=phpredis
+          REDIS_HOST=127.0.0.1
+          REDIS_PASSWORD=null
           REDIS_PORT=6379
           
-          # Queue
-          QUEUE_CONNECTION=redis
-          
-          # Mail (commented out - add secrets later if needed)
-          # MAIL_MAILER=smtp
-          # MAIL_HOST=${{ secrets.MAIL_HOST }}
-          # MAIL_PORT=${{ secrets.MAIL_PORT }}
-          # MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
-          # MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
-          # MAIL_ENCRYPTION=tls
-          # MAIL_FROM_ADDRESS=${{ secrets.MAIL_FROM_ADDRESS }}
-          # ADMIN_MAIL_ADDRESS=${{ secrets.ADMIN_MAIL_ADDRESS }}
-          
-          # Docker
-          DOCKER_IMAGE=${{ needs.build-and-push.outputs.image_tag }}
-          NGINX_PORT=8080
-          NGINX_SSL_PORT=8443
-          PHP_MEMORY_LIMIT=512M
-          
-          # Response Cache
           RESPONSE_CACHE_ENABLED=true
           
-          # Elasticsearch
-          ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+          # Mail (Optional - configure later if needed)
+          MAIL_MAILER=log
+          MAIL_HOST=
+          MAIL_PORT=
+          MAIL_USERNAME=
+          MAIL_PASSWORD=
+          MAIL_ENCRYPTION=
+          
+          MAIL_FROM_ADDRESS=
+          MAIL_FROM_NAME=
+          
+          ADMIN_MAIL_ADDRESS=
+          ADMIN_MAIL_NAME=
+          
+          CONTACT_MAIL_ADDRESS=
+          CONTACT_MAIL_NAME=
+          
+          # AWS (Optional)
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_BUCKET=${{ secrets.AWS_BUCKET }}
+          AWS_USE_PATH_STYLE_ENDPOINT=false
+          
+          # Vite
+          VITE_APP_NAME="${{ secrets.APP_NAME }}"
+          VITE_HOST=localhost
+          VITE_PORT=
           ENVEOF
           EOF
 
-      - name: Deploy on VPS
+      - name: Install Composer dependencies
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
             set -e
             cd ${{ secrets.DEPLOY_PATH }}
             
-            # Verify files exist
-            echo "Files in deployment directory:"
-            ls -la
+            # Install dependencies
+            composer install --optimize-autoloader --no-dev --no-interaction
             
-            # Login to GitHub Container Registry
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
-            
-            # Pull the latest image
-            docker pull ${{ needs.build-and-push.outputs.image_tag }}
-            
-            # Stop and remove old containers
-            docker compose down
-            
-            # Start new containers
-            docker compose up -d
-            
-            # Wait for services to be ready
-            echo "Waiting for services to start..."
-            sleep 45
-            
-            # Check container status
-            echo "Container status:"
-            docker compose ps
-            
-            # Check MySQL logs
-            echo "MySQL logs:"
-            docker compose logs mysql | tail -50
-            
-            # Wait for MySQL to be fully ready
-            echo "Waiting for MySQL to initialize..."
-            MAX_TRIES=30
-            COUNT=0
-            until docker compose exec -T mysql mysqladmin ping -h localhost --silent 2>/dev/null; do
-              COUNT=$((COUNT+1))
-              if [ $COUNT -ge $MAX_TRIES ]; then
-                echo "MySQL failed to start after $MAX_TRIES attempts"
-                docker compose logs mysql
-                exit 1
-              fi
-              echo "MySQL is unavailable - attempt $COUNT/$MAX_TRIES"
-              sleep 5
-            done
-            echo "MySQL is ready!"
+            echo "✅ Composer dependencies installed"
+          EOF
+
+      - name: Run database migrations
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
             
             # Run migrations
-            docker compose exec -T php php artisan migrate --force
+            php artisan migrate --force
+            
+            echo "✅ Database migrations completed"
+          EOF
+
+      - name: Setup storage and optimize
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
             
             # Create storage link
-            docker compose exec -T php php artisan storage:link || true
+            php artisan storage:link || true
             
-            # Clear and optimize
-            docker compose exec -T php php artisan config:clear
-            docker compose exec -T php php artisan cache:clear
-            docker compose exec -T php php artisan route:clear
-            docker compose exec -T php php artisan view:clear
+            # Set proper permissions
+            chmod -R 775 storage bootstrap/cache
+            chown -R $USER:www-data storage bootstrap/cache
+            
+            # Clear all caches
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:clear
+            php artisan view:clear
             
             # Cache for production
-            docker compose exec -T php php artisan config:cache
-            docker compose exec -T php php artisan route:cache
-            docker compose exec -T php php artisan view:cache
-            docker compose exec -T php php artisan optimize
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan optimize
             
-            # Cleanup old images
-            docker image prune -f
+            echo "✅ Application optimized for production"
+          EOF
+
+      - name: Install and build frontend assets
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+            
+            # Install npm dependencies
+            npm ci --production
+            
+            # Build assets
+            npm run build
+            
+            echo "✅ Frontend assets built"
+          EOF
+
+      - name: Restart PHP-FPM and web server
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            # Restart PHP-FPM (adjust service name if needed)
+            sudo systemctl restart php8.3-fpm || sudo systemctl restart php8.2-fpm || sudo systemctl restart php-fpm
+            
+            # Restart Nginx/Apache
+            sudo systemctl restart nginx || sudo systemctl restart apache2
+            
+            echo "✅ Services restarted"
           EOF
 
       - name: Health Check
         run: |
-          sleep 10
-          echo "Checking containers status..."
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "cd ${{ secrets.DEPLOY_PATH }} && docker compose ps"
-          
-          echo "Testing connection to http://${{ secrets.VPS_HOST }}:8080"
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.VPS_HOST }}:8080 || echo "000")
+          sleep 5
+          echo "Checking application health..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.APP_URL }} || echo "000")
           echo "Got HTTP status: $STATUS"
           
-          if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ] || [ "$STATUS" = "500" ]; then
+          if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ]; then
             echo "✅ Site is responding (HTTP $STATUS)"
           else
-            echo "⚠️  Site returned HTTP $STATUS - Check manually at http://${{ secrets.VPS_HOST }}:8080"
-            echo "Containers are running, deployment completed, but site may need time to initialize"
+            echo "⚠️  Site returned HTTP $STATUS - Check manually at ${{ secrets.APP_URL }}"
           fi
 
       - name: Deployment notification
@@ -233,6 +234,8 @@ jobs:
         run: |
           if [ "${{ job.status }}" == "success" ]; then
             echo "✅ Deployment to ${{ secrets.APP_URL }} completed successfully!"
+            echo "🎉 Your Bagisto store is now live!"
           else
             echo "❌ Deployment failed!"
+            echo "Check the logs above for details."
           fi
