@@ -69,9 +69,12 @@ Before deployment, ensure your VPS has:
 # Update system
 sudo apt update && sudo apt upgrade -y
 
-# Install PHP 8.2 and extensions
-sudo apt install -y php8.2 php8.2-fpm php8.2-mysql php8.2-xml php8.2-mbstring \
-  php8.2-curl php8.2-zip php8.2-gd php8.2-bcmath php8.2-intl php8.2-redis
+# Install PHP 8.4 and extensions
+sudo apt install -y software-properties-common
+sudo add-apt-repository ppa:ondrej/php -y
+sudo apt update
+sudo apt install -y php8.4 php8.4-fpm php8.4-mysql php8.4-xml php8.4-mbstring \
+  php8.4-curl php8.4-zip php8.4-gd php8.4-bcmath php8.4-intl php8.4-dom
 
 # Install Composer
 curl -sS https://getcomposer.org/installer | php
@@ -136,7 +139,7 @@ server {
     error_page 404 /index.php;
 
     location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_pass unix:/var/run/php/php8.4-fpm.sock;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
         include fastcgi_params;
     }

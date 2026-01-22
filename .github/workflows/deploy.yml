@@ -138,21 +138,16 @@ jobs:
           ENVEOF
           EOF
 
-      - name: Install PHP 8.4 extensions and Composer dependencies
+      - name: Install Composer dependencies
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
             set -e
             cd ${{ secrets.DEPLOY_PATH }}
             
-            # Install PHP 8.4 and required extensions
-            echo "Installing PHP 8.4 and extensions..."
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq php8.4 php8.4-cli php8.4-fpm php8.4-curl php8.4-intl php8.4-mysql php8.4-dom php8.4-gd php8.4-mbstring php8.4-xml php8.4-zip php8.4-bcmath 2>&1 | grep -v "^Reading" || true
-            
             # Install dependencies using PHP 8.4
             /usr/bin/php8.4 $(which composer) install --optimize-autoloader --no-dev --no-interaction
             
-            echo "✅ PHP 8.4 extensions and Composer dependencies installed"
+            echo "✅ Composer dependencies installed"
           EOF
 
       - name: Run database migrations
@@ -213,13 +208,13 @@ jobs:
       - name: Restart PHP-FPM and web server
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
-            # Restart PHP-FPM
-            sudo systemctl restart php8.4-fpm
+            # Restart PHP-FPM (if user has sudo access)
+            sudo systemctl restart php8.4-fpm 2>/dev/null || echo "⚠️  Could not restart PHP-FPM (no sudo access)"
             
-            # Restart Nginx/Apache
-            sudo systemctl restart nginx || sudo systemctl restart apache2
+            # Restart Nginx/Apache (if user has sudo access)
+            sudo systemctl restart nginx 2>/dev/null || sudo systemctl restart apache2 2>/dev/null || echo "⚠️  Could not restart web server (no sudo access)"
             
-            echo "✅ Services restarted"
+            echo "✅ Services restart attempted"
           EOF
 
       - name: Health Check
