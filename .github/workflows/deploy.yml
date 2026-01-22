@@ -200,7 +200,7 @@ jobs:
             cd ${{ secrets.DEPLOY_PATH }}
             
             # Install npm dependencies
-            npm ci --production
+            npm install --production
             
             # Build assets
             npm run build
