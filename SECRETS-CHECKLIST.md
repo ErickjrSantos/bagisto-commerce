@@ -19,7 +19,7 @@ Go to: **Your Repo → Settings → Secrets and variables → Actions → New re
 
 ## ✅ Database (5 secrets)
 - [ ] `DB_HOST` - Database host (e.g., `localhost` or `127.0.0.1`)
-- [ ] `DB_PORT` - Database port (usually `3306`)
+- [ ] `DB_PORT` - Database port (your port: `3307`)
 - [ ] `DB_DATABASE` - Database name (e.g., `mutindo`)
 - [ ] `DB_USERNAME` - Database user (e.g., `bagisto`)
 - [ ] `DB_PASSWORD` - Database password
@@ -69,9 +69,9 @@ Before deployment, ensure your VPS has:
 # Update system
 sudo apt update && sudo apt upgrade -y
 
-# Install PHP 8.2/8.3 and extensions
-sudo apt install -y php8.3 php8.3-fpm php8.3-mysql php8.3-xml php8.3-mbstring \
-  php8.3-curl php8.3-zip php8.3-gd php8.3-bcmath php8.3-intl php8.3-redis
+# Install PHP 8.2 and extensions
+sudo apt install -y php8.2 php8.2-fpm php8.2-mysql php8.2-xml php8.2-mbstring \
+  php8.2-curl php8.2-zip php8.2-gd php8.2-bcmath php8.2-intl php8.2-redis
 
 # Install Composer
 curl -sS https://getcomposer.org/installer | php
@@ -136,7 +136,7 @@ server {
     error_page 404 /index.php;
 
     location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
         include fastcgi_params;
     }

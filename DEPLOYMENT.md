@@ -72,7 +72,7 @@ tail -f /var/www/bagisto/storage/logs/laravel.log
 sudo tail -f /var/log/nginx/error.log
 
 # Check PHP-FPM status
-sudo systemctl status php8.3-fpm
+sudo systemctl status php8.2-fpm
 
 # Run artisan commands
 cd /var/www/bagisto
@@ -102,7 +102,7 @@ sudo chmod -R 775 storage bootstrap/cache
 - Check MySQL is running: `sudo systemctl status mysql`
 
 **502 Bad Gateway:**
-- Check PHP-FPM is running: `sudo systemctl restart php8.3-fpm`
+- Check PHP-FPM is running: `sudo systemctl restart php8.2-fpm`
 - Check Nginx config: `sudo nginx -t`
 
 ## Optional Features

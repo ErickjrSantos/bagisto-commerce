@@ -40,7 +40,7 @@ Name: DB_HOST
 Value: localhost
 
 Name: DB_PORT
-Value: 3306
+Value: 3307
 
 Name: DB_DATABASE
 Value: mutindo

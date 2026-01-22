@@ -207,8 +207,8 @@ jobs:
       - name: Restart PHP-FPM and web server
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
-            # Restart PHP-FPM (adjust service name if needed)
-            sudo systemctl restart php8.3-fpm || sudo systemctl restart php8.2-fpm || sudo systemctl restart php-fpm
+            # Restart PHP-FPM
+            sudo systemctl restart php8.2-fpm
             
             # Restart Nginx/Apache
             sudo systemctl restart nginx || sudo systemctl restart apache2
