@@ -168,12 +168,15 @@ jobs:
             set -e
             cd ${{ secrets.DEPLOY_PATH }}
             
+            # Fix ownership first
+            sudo chown -R $USER:www-data .
+            
             # Create storage link
             /usr/bin/php8.4 artisan storage:link || true
             
             # Set proper permissions
             chmod -R 775 storage bootstrap/cache
-            chown -R $USER:www-data storage bootstrap/cache
+            sudo chown -R $USER:www-data storage bootstrap/cache public/storage
             
             # Clear all caches
             /usr/bin/php8.4 artisan config:clear
