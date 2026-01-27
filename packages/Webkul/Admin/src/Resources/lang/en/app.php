@@ -5021,7 +5021,7 @@ return [
     ],
 
     'footer' => [
-        'copy-right' => 'Powered by <a href="https://bagisto.com/" target="_blank">Bagisto</a>, A Community Project by <a href="https://webkul.com/" target="_blank">Webkul</a>',
+        'copy-right' => '© Copyright 2010 - ' . date('Y') . '. All rights reserved. Designed by <a href="https://kicowebdesign.com/" target="_blank">Kico Web Design</a>',
     ],
 
     'emails' => [
